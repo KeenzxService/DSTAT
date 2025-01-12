@@ -6,7 +6,7 @@ const os = require("os");
 
 const cpus = os.cpus().length;
 const port = 8080;
-const index = fs.readFileSync("./html/index.html");
+const index = fs.readFileSync("./index.html");
 
 if (cluster.isMaster) {
   console.log(`Number of CPUs is ${cpus}`);

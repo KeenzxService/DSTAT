@@ -16,15 +16,30 @@ if (cluster.isMaster) {
   let childs = [];
   for (let i = 0; i < cpus; i++) {
     let child = cluster.fork();
+
+    // Listen for message from worker
     child.on("message", (msg) => {
-      requests++;
+      if (msg === 'increment') {
+        requests++;
+      }
     });
+
+    // Listen for worker exit to respawn if necessary
+    child.on('exit', (code, signal) => {
+      if (code !== 0) {
+        console.error(`Worker ${child.process.pid} exited with code ${code}`);
+      }
+    });
+
     childs.push(child);
   }
 
   setInterval(() => {
+    // Send requests count to workers
     for (let child of childs) {
-      child.send(requests);
+      if (child.isConnected()) {
+        child.send(requests);
+      }
     }
     requests = 0;
   }, 1000);
@@ -33,7 +48,7 @@ if (cluster.isMaster) {
 
   const handler = function (req, res) {
     if (req.url == "/count") {
-      process.send(0);
+      process.send('increment'); // Notify master to increment request count
       res.end();
     } else {
       res.end(index);
@@ -44,8 +59,17 @@ if (cluster.isMaster) {
   const wss = new WebSocket.Server({ server });
 
   process.on("message", (requests) => {
+    console.log(`Worker ${process.pid} received requests: ${requests}`);
+    // Send the number of requests to all WebSocket clients
     wss.clients.forEach((client) => client.send(requests));
   });
 
-  server.listen(port);
+  // Handle worker errors
+  process.on('error', (err) => {
+    console.error(`Error in worker ${process.pid}:`, err);
+  });
+
+  server.listen(port, () => {
+    console.log(`Worker ${process.pid} is listening on port ${port}`);
+  });
 }
